@@ -56,7 +56,7 @@ fastify.get('/:cid', async (request, reply) => {
 const start = async () => {
     try {
         console.log(`IPFS Gateway: ${IPFS_GATEWAY}`)
-        await fastify.listen(3000, '0.0.0.0')
+        await fastify.listen(80, '0.0.0.0')
     } catch (err) {
         fastify.log.error(err)
         process.exit(1)
