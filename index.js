@@ -4,6 +4,8 @@ const IPFS_GATEWAY = process.env.IPFS_GATEWAY || 'https://ipfs.sc2.nl';
 const fastify = require('fastify')({ logger: false })
 const axios = require('axios');
 const multiformats = require('multiformats')
+const base58 = require('base58')
+const fs = require('fs');
 
 // The chains from: https://github.com/ethereum-lists/chains/tree/master/_data/chains
 // These are stored on IPFS with CID: bafybeigopbjf4ilivoqyzrijehjbgwjriwpn3wl3vgelk7skgr3bl7xcim
@@ -15,6 +17,25 @@ async function getRpc(bid) {
     return response.data.rpc.shift()
 }
 
+async function shortCidToValue(cid) {
+    // First varify that what we have is allowed in our cid. We wouldn't want nasty hack attempts...
+    try {
+        if (typeof base58.decode(cid) !== 'number') {
+            throw new Error(`CID format is invalid`);
+        }
+
+        if (!fs.existsSync(`tempcids/${cid}.json`)) {
+            return null;
+        }
+
+        // Now try load the json file
+        return JSON.parse(fs.readFileSync(`tempcids/${cid}.json`))?.cid;
+
+    } catch (error) {
+        return null;
+    }
+}
+
 const fromHexString = hexString =>
   new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
 
@@ -23,8 +44,73 @@ fastify.get('/favicon.ico', async (request, reply) => {
     return {}
 })
 
+fastify.get('/register', async (request, reply) => {
+    let hash = () => {
+        let data = ''
+        for (let i = 0; i < 6; i++) {
+          data += base58.int_to_base58(Math.floor(Math.random() * 58))
+        }
+    
+        return data;
+    };
+
+    let newHash = ''
+
+    // We should only get in here once but just 100 in case. It's to prevent hash collisions.
+    for (let i = 0; i < 100; i++) {
+        newHash = hash();
+        if (!fs.existsSync(`tempcids/${newHash}.json`)) {
+            break;
+        }
+    }
+
+    if (!fs.existsSync("tempcids")) {
+        fs.mkdirSync("tempcids", );
+    }
+    fs.writeFileSync(`tempcids/${newHash}.json`, JSON.stringify({ cid: '' }));
+    return newHash;
+})
+
+fastify.put('/:shortcid', async (request, reply) => {
+    try {
+        // console.log(request)
+        if (request.params.shortcid.length != 6) {
+            throw new Error(`Invalid short cid. It's length was ${request.params.shortcid.length}.`);
+        }
+
+        let cidVal = shortCidToValue(request.params.shortcid)
+        if (!cidVal) {
+            throw new Error(`Register a short cid first.`);
+        }
+
+        if (!request.body?.cid) {
+            throw new Error(`JSON body must contain a cid value`);
+        }
+
+        if (request.body.cid.length > 100) {
+            throw new Error(`JSON body is capped at 100 bytes!`);
+        }
+        
+        // All checks done. Update cid value and return the cid we got.
+        fs.writeFileSync(`tempcids/${request.params.shortcid}.json`, JSON.stringify({ cid: request.body.cid }));
+        return request.body.cid
+    } catch (error) {
+        return { error: error.toString() }
+    }
+})
+
+
 fastify.get('/:cid', async (request, reply) => {
     try {
+        if (request.params.cid.length == 6) {
+            let cidVal = await shortCidToValue(request.params.cid)
+            if (!cidVal) {
+                throw new Error(`Invalid short cid. It's length was ${request.params.cid.length}.`);
+            }
+
+            return { cid: cidVal }
+        }
+
         let response = await axios.get(`${IPFS_GATEWAY}/ipfs/${request.params.cid}`);
         let rpc = await getRpc(response.data.blockchainID)
         web3.setProvider(rpc)
@@ -48,7 +134,7 @@ fastify.get('/:cid', async (request, reply) => {
             return { value }
         }
     } catch (error) {
-        return { error: error }
+        return { error: error.toString() }
     }
 })
 
