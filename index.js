@@ -29,7 +29,7 @@ async function shortCidToValue(cid) {
         }
 
         // Now try load the json file
-        return JSON.parse(fs.readFileSync(`tempcids/${cid}.json`))?.cid;
+        return JSON.parse(fs.readFileSync(`tempcids/${cid}.json`))?.value;
 
     } catch (error) {
         return null;
