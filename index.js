@@ -67,7 +67,7 @@ fastify.get('/register', async (request, reply) => {
     if (!fs.existsSync("tempcids")) {
         fs.mkdirSync("tempcids", );
     }
-    fs.writeFileSync(`tempcids/${newHash}.json`, JSON.stringify({ cid: '' }));
+    fs.writeFileSync(`tempcids/${newHash}.json`, JSON.stringify({ value: '' }));
     return newHash;
 })
 
@@ -92,7 +92,7 @@ fastify.put('/:shortcid', async (request, reply) => {
         }
         
         // All checks done. Update cid value and return the cid we got.
-        fs.writeFileSync(`tempcids/${request.params.shortcid}.json`, JSON.stringify({ cid: request.body.cid }));
+        fs.writeFileSync(`tempcids/${request.params.shortcid}.json`, JSON.stringify({ value: request.body.cid }));
         return request.body.cid
     } catch (error) {
         return { error: error.toString() }
@@ -108,7 +108,7 @@ fastify.get('/:cid', async (request, reply) => {
                 throw new Error(`Invalid short cid. It's length was ${request.params.cid.length}.`);
             }
 
-            return { cid: cidVal }
+            return { value: cidVal }
         }
 
         let response = await axios.get(`${IPFS_GATEWAY}/ipfs/${request.params.cid}`);
