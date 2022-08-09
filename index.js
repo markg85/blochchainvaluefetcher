@@ -11,25 +11,29 @@ const fs = require('fs');
 // These are stored on IPFS with CID: bafybeigopbjf4ilivoqyzrijehjbgwjriwpn3wl3vgelk7skgr3bl7xcim
 const CHAINS_CID = 'bafybeigopbjf4ilivoqyzrijehjbgwjriwpn3wl3vgelk7skgr3bl7xcim'
 
+const APP_ROOT = process.mainModule.path
+const CIDS_FOLDER = `${APP_ROOT}/tempcids`
+const PORT = process.env.PORT || 9090;
+
 async function getRpc(bid) {
     let filename = `${CHAINS_CID}/eip155-${bid}.json`
     let response = await axios.get(`${IPFS_GATEWAY}/ipfs/${filename}`)
     return response.data.rpc.shift()
 }
 
-async function shortCidToValue(cid) {
+async function loadCidJson(cid) {
     // First varify that what we have is allowed in our cid. We wouldn't want nasty hack attempts...
     try {
         if (typeof base58.decode(cid) !== 'number') {
             throw new Error(`CID format is invalid`);
         }
 
-        if (!fs.existsSync(`tempcids/${cid}.json`)) {
+        if (!fs.existsSync(`${CIDS_FOLDER}/${cid}.json`)) {
             return null;
         }
 
         // Now try load the json file
-        return JSON.parse(fs.readFileSync(`tempcids/${cid}.json`))?.value;
+        return JSON.parse(fs.readFileSync(`${CIDS_FOLDER}/${cid}.json`));
 
     } catch (error) {
         return null;
@@ -59,15 +63,15 @@ fastify.get('/register', async (request, reply) => {
     // We should only get in here once but just 100 in case. It's to prevent hash collisions.
     for (let i = 0; i < 100; i++) {
         newHash = hash();
-        if (!fs.existsSync(`tempcids/${newHash}.json`)) {
+        if (!fs.existsSync(`${CIDS_FOLDER}/${newHash}.json`)) {
             break;
         }
     }
 
-    if (!fs.existsSync("tempcids")) {
-        fs.mkdirSync("tempcids", );
+    if (!fs.existsSync(CIDS_FOLDER)) {
+        fs.mkdirSync(CIDS_FOLDER, );
     }
-    fs.writeFileSync(`tempcids/${newHash}.json`, JSON.stringify({ value: '' }));
+    fs.writeFileSync(`${CIDS_FOLDER}/${newHash}.json`, JSON.stringify({ value: '' }));
     return newHash;
 })
 
@@ -78,8 +82,8 @@ fastify.put('/:shortcid', async (request, reply) => {
             throw new Error(`Invalid short cid. It's length was ${request.params.shortcid.length}.`);
         }
 
-        let cidVal = shortCidToValue(request.params.shortcid)
-        if (!cidVal) {
+        let cidJson = loadCidJson(request.params.shortcid)
+        if (!cidJson?.value) {
             throw new Error(`Register a short cid first.`);
         }
 
@@ -90,9 +94,15 @@ fastify.put('/:shortcid', async (request, reply) => {
         if (request.body.cid.length > 100) {
             throw new Error(`JSON body is capped at 100 bytes!`);
         }
+
+        let objToStore = { value: request.body.cid }
+
+        if (!request.body?.redirect) {
+            objToStore.redirect = request.body.redirect
+        }
         
         // All checks done. Update cid value and return the cid we got.
-        fs.writeFileSync(`tempcids/${request.params.shortcid}.json`, JSON.stringify({ value: request.body.cid }));
+        fs.writeFileSync(`${CIDS_FOLDER}/${request.params.shortcid}.json`, JSON.stringify(objToStore));
         return request.body.cid
     } catch (error) {
         return { error: error.toString() }
@@ -103,12 +113,17 @@ fastify.put('/:shortcid', async (request, reply) => {
 fastify.get('/:cid', async (request, reply) => {
     try {
         if (request.params.cid.length == 6) {
-            let cidVal = await shortCidToValue(request.params.cid)
-            if (!cidVal) {
+            let cidJson = await loadCidJson(request.params.cid)
+            if (!cidJson?.value) {
                 throw new Error(`Invalid short cid. It's length was ${request.params.cid.length}.`);
             }
 
-            return { value: cidVal }
+            // We just want to redirect
+            if (cidJson?.redirect) {
+                return reply.redirect(cidJson.redirect)
+            }
+
+            return { value: cidJson.value }
         }
 
         let response = await axios.get(`${IPFS_GATEWAY}/ipfs/${request.params.cid}`);
@@ -142,7 +157,7 @@ fastify.get('/:cid', async (request, reply) => {
 const start = async () => {
     try {
         console.log(`IPFS Gateway: ${IPFS_GATEWAY}`)
-        await fastify.listen(80, '0.0.0.0')
+        await fastify.listen(PORT, '0.0.0.0')
     } catch (err) {
         fastify.log.error(err)
         process.exit(1)
