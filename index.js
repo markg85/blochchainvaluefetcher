@@ -83,7 +83,7 @@ fastify.put('/:shortcid', async (request, reply) => {
         }
 
         let cidJson = await loadCidJson(request.params.shortcid)
-        if (!cidJson?.value) {
+        if (cidJson == null) {
             throw new Error(`Register a short cid first.`);
         }
 
