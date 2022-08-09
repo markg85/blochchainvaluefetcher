@@ -82,7 +82,7 @@ fastify.put('/:shortcid', async (request, reply) => {
             throw new Error(`Invalid short cid. It's length was ${request.params.shortcid.length}.`);
         }
 
-        let cidJson = loadCidJson(request.params.shortcid)
+        let cidJson = await loadCidJson(request.params.shortcid)
         if (!cidJson?.value) {
             throw new Error(`Register a short cid first.`);
         }
@@ -97,7 +97,7 @@ fastify.put('/:shortcid', async (request, reply) => {
 
         let objToStore = { value: request.body.cid }
 
-        if (!request.body?.redirect) {
+        if (request.body?.redirect) {
             objToStore.redirect = request.body.redirect
         }
         
