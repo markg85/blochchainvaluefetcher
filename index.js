@@ -78,7 +78,7 @@ fastify.get('/register', async (request, reply) => {
 fastify.put('/:shortcid', async (request, reply) => {
     try {
         // console.log(request)
-        if (request.params.shortcid.length != 6) {
+        if (request.params.shortcid.length >= 3) {
             throw new Error(`Invalid short cid. It's length was ${request.params.shortcid.length}.`);
         }
 
