@@ -112,7 +112,7 @@ fastify.put('/:shortcid', async (request, reply) => {
 
 fastify.get('/:cid', async (request, reply) => {
     try {
-        if (request.params.cid.length == 6) {
+        if (request.params.cid.length <= 6) {
             let cidJson = await loadCidJson(request.params.cid)
             if (!cidJson?.value) {
                 throw new Error(`Invalid short cid. It's length was ${request.params.cid.length}.`);
